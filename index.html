@@ -9,9 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -154,6 +152,27 @@ button:disabled {
   line-height: 1.8;
 }
 
+.delete-btn {
+  display: block;
+  margin-top: 15px;
+  padding: 8px 13px;
+  background: transparent;
+  color: #777;
+  border: 1px solid #999;
+  font-size: 12px;
+}
+
+.delete-btn:hover {
+  background: #222;
+  color: white;
+}
+
+.post-status {
+  font-size: 12px;
+  margin-top: 8px;
+  color: #777;
+}
+
 .empty {
   text-align: center;
   color: #888;
@@ -213,6 +232,7 @@ footer {
     <h2 class="section-title">기사 작성하기</h2>
 
     <form id="postForm">
+
       <input
         id="nickname"
         type="text"
@@ -236,7 +256,19 @@ footer {
         required
       ></textarea>
 
+      <input
+        id="deletePassword"
+        type="password"
+        placeholder="기사 삭제 비밀번호 (6자 이상)"
+        minlength="6"
+        maxlength="72"
+        autocomplete="new-password"
+        required
+      >
+
       <p class="notice">
+        삭제 비밀번호는 꼭 기억해 주세요.
+        비밀번호를 잊으면 해당 기사를 직접 삭제할 수 없습니다.
         실명, 연락처, 얼굴 사진 등 개인정보를 올리지 마세요.
         특정인을 겨냥한 괴롭힘이나 확인되지 않은 비난도 금지합니다.
         게시글은 공개될 수 있습니다.
@@ -252,6 +284,7 @@ footer {
 
   <section>
     <h2 class="section-title">최신 기사</h2>
+
     <div id="posts">
       <div class="empty">기사를 불러오는 중입니다...</div>
     </div>
@@ -286,6 +319,7 @@ document.getElementById("today").textContent =
 // ===== 게시글 불러오기 =====
 
 async function loadPosts() {
+
   const list = document.getElementById("posts");
 
   const { data, error } = await db
@@ -310,6 +344,7 @@ async function loadPosts() {
   }
 
   data.forEach(post => {
+
     const article = document.createElement("article");
     article.className = "post";
 
@@ -320,6 +355,7 @@ async function loadPosts() {
     meta.className = "post-meta";
 
     const date = new Date(post.created_at);
+
     meta.textContent =
       (post.nickname || "익명") + " · " +
       date.toLocaleString("ko-KR");
@@ -328,8 +364,69 @@ async function loadPosts() {
     content.className = "post-content";
     content.textContent = post.content;
 
-    article.append(title, meta, content);
+    // ===== 삭제 버튼 =====
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "delete-btn";
+    deleteButton.textContent = "기사 삭제";
+
+    const postStatus = document.createElement("div");
+    postStatus.className = "post-status";
+    postStatus.setAttribute("role", "status");
+
+    deleteButton.addEventListener("click", async () => {
+
+      const password = window.prompt(
+        "이 기사의 삭제 비밀번호를 입력하세요."
+      );
+
+      if (password === null) return;
+
+      if (!password) {
+        postStatus.textContent = "비밀번호를 입력해 주세요.";
+        return;
+      }
+
+      const confirmed = window.confirm(
+        "정말 이 기사를 삭제하시겠습니까?"
+      );
+
+      if (!confirmed) return;
+
+      deleteButton.disabled = true;
+      postStatus.textContent = "삭제하는 중입니다...";
+
+      const { error } = await db.rpc("delete_post", {
+        p_post_id: post.id,
+        p_password: password
+      });
+
+      if (error) {
+        console.error(error);
+
+        postStatus.textContent =
+          error.message.includes("비밀번호")
+            ? "비밀번호가 올바르지 않습니다."
+            : "삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+
+        deleteButton.disabled = false;
+        return;
+      }
+
+      await loadPosts();
+    });
+
+    article.append(
+      title,
+      meta,
+      content,
+      deleteButton,
+      postStatus
+    );
+
     list.appendChild(article);
+
   });
 }
 
@@ -349,29 +446,40 @@ document.getElementById("postForm")
   const content =
     document.getElementById("content").value.trim();
 
+  const password =
+    document.getElementById("deletePassword").value;
+
   const status = document.getElementById("status");
   const button = document.getElementById("submitBtn");
 
-  if (!nickname || !title || !content) {
+  if (!nickname || !title || !content || !password) {
     status.textContent = "모든 항목을 입력해 주세요.";
+    return;
+  }
+
+  if (password.length < 6) {
+    status.textContent = "삭제 비밀번호는 6자 이상이어야 합니다.";
     return;
   }
 
   button.disabled = true;
   status.textContent = "기사를 발행하는 중입니다...";
 
-  const { error } = await db
-    .from("posts")
-    .insert([{
-      nickname: nickname,
-      title: title,
-      content: content
-    }]);
+  // 서버에서 비밀번호를 해시 처리하며 게시글 작성
+
+  const { error } = await db.rpc("create_post", {
+    p_nickname: nickname,
+    p_title: title,
+    p_content: content,
+    p_password: password
+  });
 
   button.disabled = false;
 
   if (error) {
-    status.textContent = "발행 실패: " + error.message;
+    status.textContent =
+      "발행 실패: " + error.message;
+
     console.error(error);
     return;
   }
