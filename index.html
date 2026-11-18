@@ -1,1 +1,408 @@
 
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>예고고의 수만가지 악행</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #e9e7e1;
+  color: #171717;
+  font-family: "Noto Serif KR", "Batang", serif;
+}
+
+.container {
+  max-width: 850px;
+  margin: 25px auto;
+  padding: 25px;
+  background: #f8f7f2;
+  border: 1px solid #222;
+  box-shadow: 5px 5px 0 #aaa;
+}
+
+.topline {
+  text-align: center;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  letter-spacing: 3px;
+  border-bottom: 1px solid #222;
+  padding-bottom: 12px;
+}
+
+header {
+  text-align: center;
+  padding: 25px 0 18px;
+  border-bottom: 4px double #222;
+}
+
+h1 {
+  font-size: clamp(27px, 6vw, 43px);
+  margin: 0;
+  letter-spacing: -2px;
+}
+
+.subtitle {
+  margin-top: 12px;
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+
+.date {
+  margin-top: 18px;
+  font-size: 12px;
+}
+
+.headline {
+  text-align: center;
+  padding: 28px 0;
+  border-bottom: 1px solid #777;
+}
+
+.headline h2 {
+  font-size: 25px;
+  margin: 0 0 10px;
+}
+
+.headline p {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.7;
+}
+
+.section-title {
+  border-bottom: 2px solid #222;
+  padding-bottom: 10px;
+  margin-top: 30px;
+  font-size: 20px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+input, textarea {
+  width: 100%;
+  padding: 13px;
+  border: 1px solid #888;
+  background: #fff;
+  color: #111;
+  font-family: inherit;
+  font-size: 14px;
+  border-radius: 0;
+}
+
+textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+button {
+  padding: 13px;
+  background: #171717;
+  color: white;
+  border: none;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.notice {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #555;
+}
+
+.post {
+  padding: 19px 5px;
+  border-bottom: 1px solid #aaa;
+}
+
+.post h3 {
+  font-size: 19px;
+  margin: 0 0 9px;
+  overflow-wrap: anywhere;
+}
+
+.post-meta {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  color: #777;
+  margin-bottom: 12px;
+}
+
+.post-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.empty {
+  text-align: center;
+  color: #888;
+  padding: 35px 0;
+  font-size: 14px;
+}
+
+footer {
+  text-align: center;
+  border-top: 4px double #222;
+  margin-top: 35px;
+  padding-top: 18px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #555;
+}
+
+#status {
+  font-size: 12px;
+  margin-top: 10px;
+  min-height: 18px;
+}
+
+@media (max-width: 600px) {
+  .container {
+    margin: 0;
+    padding: 18px;
+    border: none;
+    box-shadow: none;
+  }
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+  <div class="topline">
+    THE DAILY GAZETTE · SPECIAL EDITION
+  </div>
+
+  <header>
+    <h1>예고고의 수만가지 악행</h1>
+    <div class="subtitle">진실과 풍자 사이, 익명의 기록</div>
+    <div class="date" id="today"></div>
+  </header>
+
+  <section class="headline">
+    <h2>오늘의 소식을 전합니다.</h2>
+    <p>
+      다양한 이야기와 의견을 자유롭게 나누는 공간입니다.<br>
+      서로를 존중하며 글을 남겨 주세요.
+    </p>
+  </section>
+
+  <section>
+    <h2 class="section-title">기사 작성하기</h2>
+
+    <form id="postForm">
+      <input
+        id="nickname"
+        type="text"
+        placeholder="닉네임"
+        maxlength="20"
+        required
+      >
+
+      <input
+        id="title"
+        type="text"
+        placeholder="기사 제목"
+        maxlength="80"
+        required
+      >
+
+      <textarea
+        id="content"
+        placeholder="기사 내용을 작성하세요."
+        maxlength="3000"
+        required
+      ></textarea>
+
+      <p class="notice">
+        실명, 연락처, 얼굴 사진 등 개인정보를 올리지 마세요.
+        특정인을 겨냥한 괴롭힘이나 확인되지 않은 비난도 금지합니다.
+        게시글은 공개될 수 있습니다.
+      </p>
+
+      <button id="submitBtn" type="submit">
+        기사 발행하기
+      </button>
+
+      <div id="status" role="status"></div>
+    </form>
+  </section>
+
+  <section>
+    <h2 class="section-title">최신 기사</h2>
+    <div id="posts">
+      <div class="empty">기사를 불러오는 중입니다...</div>
+    </div>
+  </section>
+
+  <footer>
+    BLACK & WHITE · EST. 2026
+    <p>THE DAILY GAZETTE</p>
+  </footer>
+
+</div>
+
+<script>
+// ===== SUPABASE 설정 =====
+
+const SUPABASE_URL =
+  "https://prjoclvgqmiierdzldqr.supabase.co";
+
+const SUPABASE_KEY =
+  "sb_publishable_JWqcF0D3dwGgCStAeU_MCg_o9Lzf7pM";
+
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+
+// ===== 날짜 표시 =====
+
+document.getElementById("today").textContent =
+  new Date().toLocaleDateString("ko-KR");
+
+// ===== 게시글 불러오기 =====
+
+async function loadPosts() {
+  const list = document.getElementById("posts");
+
+  const { data, error } = await db
+    .from("posts")
+    .select("id, created_at, nickname, title, content")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    list.textContent = "게시글을 불러오지 못했습니다.";
+    console.error(error);
+    return;
+  }
+
+  list.replaceChildren();
+
+  if (!data || data.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "아직 등록된 기사가 없습니다.";
+    list.appendChild(empty);
+    return;
+  }
+
+  data.forEach(post => {
+    const article = document.createElement("article");
+    article.className = "post";
+
+    const title = document.createElement("h3");
+    title.textContent = post.title;
+
+    const meta = document.createElement("div");
+    meta.className = "post-meta";
+
+    const date = new Date(post.created_at);
+    meta.textContent =
+      (post.nickname || "익명") + " · " +
+      date.toLocaleString("ko-KR");
+
+    const content = document.createElement("div");
+    content.className = "post-content";
+    content.textContent = post.content;
+
+    article.append(title, meta, content);
+    list.appendChild(article);
+  });
+}
+
+// ===== 게시글 작성 =====
+
+document.getElementById("postForm")
+.addEventListener("submit", async function(event) {
+
+  event.preventDefault();
+
+  const nickname =
+    document.getElementById("nickname").value.trim();
+
+  const title =
+    document.getElementById("title").value.trim();
+
+  const content =
+    document.getElementById("content").value.trim();
+
+  const status = document.getElementById("status");
+  const button = document.getElementById("submitBtn");
+
+  if (!nickname || !title || !content) {
+    status.textContent = "모든 항목을 입력해 주세요.";
+    return;
+  }
+
+  button.disabled = true;
+  status.textContent = "기사를 발행하는 중입니다...";
+
+  const { error } = await db
+    .from("posts")
+    .insert([{
+      nickname: nickname,
+      title: title,
+      content: content
+    }]);
+
+  button.disabled = false;
+
+  if (error) {
+    status.textContent = "발행 실패: " + error.message;
+    console.error(error);
+    return;
+  }
+
+  status.textContent = "기사가 발행되었습니다!";
+
+  document.getElementById("postForm").reset();
+
+  await loadPosts();
+});
+
+// ===== 실시간 게시글 갱신 =====
+
+db.channel("posts-realtime")
+  .on(
+    "postgres_changes",
+    {
+      event: "*",
+      schema: "public",
+      table: "posts"
+    },
+    () => {
+      loadPosts();
+    }
+  )
+  .subscribe();
+
+// ===== 최초 실행 =====
+
+loadPosts();
+
+</script>
+</body>
+</html>
