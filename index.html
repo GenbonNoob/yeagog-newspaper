@@ -430,7 +430,16 @@ async function loadPosts() {
   });
 }
 
-// ===== 게시글 작성 =====
+// ===== 제목 글자 수 표시 =====
+
+const titleInput = document.getElementById("title");
+const titleCount = document.getElementById("titleCount");
+
+titleInput.addEventListener("input", () => {
+  titleCount.textContent = titleInput.value.length + "/35";
+});
+  
+  // ===== 게시글 작성 =====
 
 document.getElementById("postForm")
 .addEventListener("submit", async function(event) {
