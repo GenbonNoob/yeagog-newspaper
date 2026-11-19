@@ -180,6 +180,84 @@ button:disabled {
   font-size: 14px;
 }
 
+.like-area {
+  margin-top: 17px;
+}
+
+.like-btn {
+  padding: 9px 15px;
+  background: transparent;
+  color: #222;
+  border: 1px solid #888;
+  font-size: 13px;
+}
+
+.like-btn.liked {
+  background: #222;
+  color: white;
+}
+
+.comment-section {
+  margin-top: 22px;
+  padding-top: 15px;
+  border-top: 1px solid #bbb;
+}
+
+.comment-heading {
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.comment {
+  padding: 10px;
+  background: #efeee9;
+  border-left: 2px solid #777;
+}
+
+.comment-meta {
+  font-size: 11px;
+  color: #777;
+  margin-bottom: 7px;
+}
+
+.comment-content {
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.no-comments {
+  color: #888;
+  font-size: 12px;
+  padding: 10px 0;
+}
+
+.comment-form {
+  margin-top: 15px;
+  gap: 9px;
+}
+
+.comment-form input {
+  padding: 10px;
+}
+
+.comment-form textarea {
+  min-height: 75px;
+  padding: 10px;
+}
+
+.comment-form button {
+  font-size: 13px;
+  padding: 10px;
+}
+
 footer {
   text-align: center;
   border-top: 4px double #222;
@@ -298,6 +376,7 @@ footer {
 </div>
 
 <script>
+
 // ===== SUPABASE 설정 =====
 
 const SUPABASE_URL =
@@ -311,10 +390,33 @@ const db = window.supabase.createClient(
   SUPABASE_KEY
 );
 
+
+// ===== 방문자 ID =====
+
+function getVisitorId() {
+
+  let visitorId = localStorage.getItem("gazette_visitor_id");
+
+  if (!visitorId) {
+    visitorId = crypto.randomUUID();
+
+    localStorage.setItem(
+      "gazette_visitor_id",
+      visitorId
+    );
+  }
+
+  return visitorId;
+}
+
+const visitorId = getVisitorId();
+
+
 // ===== 날짜 표시 =====
 
 document.getElementById("today").textContent =
   new Date().toLocaleDateString("ko-KR");
+
 
 // ===== 게시글 불러오기 =====
 
@@ -322,47 +424,276 @@ async function loadPosts() {
 
   const list = document.getElementById("posts");
 
-  const { data, error } = await db
-    .from("posts")
-    .select("id, created_at, nickname, title, content")
-    .order("created_at", { ascending: false });
+  const [postsResult, likesResult, commentsResult] =
+    await Promise.all([
 
-  if (error) {
+      db.from("posts")
+        .select("id, created_at, nickname, title, content")
+        .order("created_at", { ascending: false }),
+
+      db.from("post_likes")
+        .select("post_id, visitor_id"),
+
+      db.from("post_comments")
+        .select("id, post_id, created_at, nickname, content")
+        .order("created_at", { ascending: true })
+
+    ]);
+
+  if (postsResult.error) {
     list.textContent = "게시글을 불러오지 못했습니다.";
-    console.error(error);
+    console.error(postsResult.error);
     return;
   }
 
+  if (likesResult.error) {
+    list.textContent = "좋아요 정보를 불러오지 못했습니다.";
+    console.error(likesResult.error);
+    return;
+  }
+
+  if (commentsResult.error) {
+    list.textContent = "댓글을 불러오지 못했습니다.";
+    console.error(commentsResult.error);
+    return;
+  }
+
+  const posts = postsResult.data || [];
+  const likes = likesResult.data || [];
+  const comments = commentsResult.data || [];
+
   list.replaceChildren();
 
-  if (!data || data.length === 0) {
+  if (posts.length === 0) {
+
     const empty = document.createElement("div");
     empty.className = "empty";
     empty.textContent = "아직 등록된 기사가 없습니다.";
+
     list.appendChild(empty);
     return;
   }
 
-  data.forEach(post => {
+  posts.forEach(post => {
 
     const article = document.createElement("article");
     article.className = "post";
 
+    // ===== 제목 =====
+
     const title = document.createElement("h3");
     title.textContent = post.title;
+
+    // ===== 작성자 및 날짜 =====
 
     const meta = document.createElement("div");
     meta.className = "post-meta";
 
-    const date = new Date(post.created_at);
-
     meta.textContent =
       (post.nickname || "익명") + " · " +
-      date.toLocaleString("ko-KR");
+      new Date(post.created_at).toLocaleString("ko-KR");
+
+    // ===== 본문 =====
 
     const content = document.createElement("div");
     content.className = "post-content";
     content.textContent = post.content;
+
+
+    // ===== 좋아요 =====
+
+    const postLikes = likes.filter(
+      like => String(like.post_id) === String(post.id)
+    );
+
+    const liked = postLikes.some(
+      like => like.visitor_id === visitorId
+    );
+
+    const likeArea = document.createElement("div");
+    likeArea.className = "like-area";
+
+    const likeButton = document.createElement("button");
+    likeButton.type = "button";
+    likeButton.className = "like-btn";
+
+    if (liked) {
+      likeButton.classList.add("liked");
+    }
+
+    likeButton.textContent =
+      (liked ? "♥ 좋아요 취소" : "♡ 좋아요") +
+      " (" + postLikes.length + ")";
+
+    likeButton.addEventListener("click", async () => {
+
+      likeButton.disabled = true;
+
+      const { error } = await db.rpc(
+        "toggle_post_like",
+        {
+          p_post_id: post.id,
+          p_visitor_id: visitorId
+        }
+      );
+
+      if (error) {
+        console.error(error);
+        alert("좋아요 처리에 실패했습니다.");
+        likeButton.disabled = false;
+        return;
+      }
+
+      await loadPosts();
+
+    });
+
+    likeArea.appendChild(likeButton);
+
+
+    // ===== 댓글 =====
+
+    const commentSection = document.createElement("div");
+    commentSection.className = "comment-section";
+
+    const commentHeading = document.createElement("div");
+    commentHeading.className = "comment-heading";
+
+    const postComments = comments.filter(
+      comment => String(comment.post_id) === String(post.id)
+    );
+
+    commentHeading.textContent =
+      "댓글 (" + postComments.length + ")";
+
+    const commentList = document.createElement("div");
+    commentList.className = "comment-list";
+
+    if (postComments.length === 0) {
+
+      const noComments = document.createElement("div");
+      noComments.className = "no-comments";
+      noComments.textContent = "아직 댓글이 없습니다.";
+
+      commentList.appendChild(noComments);
+
+    } else {
+
+      postComments.forEach(comment => {
+
+        const commentBox = document.createElement("div");
+        commentBox.className = "comment";
+
+        const commentMeta = document.createElement("div");
+        commentMeta.className = "comment-meta";
+
+        commentMeta.textContent =
+          (comment.nickname || "익명") + " · " +
+          new Date(comment.created_at).toLocaleString("ko-KR");
+
+        const commentContent = document.createElement("div");
+        commentContent.className = "comment-content";
+        commentContent.textContent = comment.content;
+
+        commentBox.append(
+          commentMeta,
+          commentContent
+        );
+
+        commentList.appendChild(commentBox);
+
+      });
+
+    }
+
+
+    // ===== 댓글 작성 폼 =====
+
+    const commentForm = document.createElement("form");
+    commentForm.className = "comment-form";
+
+    const commentNickname = document.createElement("input");
+    commentNickname.type = "text";
+    commentNickname.placeholder = "댓글 닉네임";
+    commentNickname.maxLength = 20;
+    commentNickname.required = true;
+
+    const commentInput = document.createElement("textarea");
+    commentInput.placeholder = "댓글을 작성하세요.";
+    commentInput.maxLength = 1000;
+    commentInput.required = true;
+
+    const commentButton = document.createElement("button");
+    commentButton.type = "submit";
+    commentButton.textContent = "댓글 등록";
+
+    const commentStatus = document.createElement("div");
+    commentStatus.className = "post-status";
+    commentStatus.setAttribute("role", "status");
+
+    commentForm.append(
+      commentNickname,
+      commentInput,
+      commentButton,
+      commentStatus
+    );
+
+    commentForm.addEventListener("submit", async event => {
+
+      event.preventDefault();
+
+      const nickname = commentNickname.value.trim();
+      const commentText = commentInput.value.trim();
+
+      if (!nickname || !commentText) {
+        commentStatus.textContent =
+          "닉네임과 댓글을 입력해 주세요.";
+        return;
+      }
+
+      if (nickname.length > 20 || commentText.length > 1000) {
+        commentStatus.textContent =
+          "입력 가능한 글자 수를 확인해 주세요.";
+        return;
+      }
+
+      commentButton.disabled = true;
+      commentStatus.textContent = "댓글 등록 중...";
+
+      const { error } = await db
+        .from("post_comments")
+        .insert({
+          post_id: post.id,
+          nickname: nickname,
+          content: commentText
+        });
+
+      if (error) {
+
+        console.error(error);
+
+        commentStatus.textContent =
+          "댓글 등록에 실패했습니다.";
+
+        commentButton.disabled = false;
+        return;
+      }
+
+      commentForm.reset();
+
+      commentStatus.textContent =
+        "댓글이 등록되었습니다!";
+
+      await loadPosts();
+
+    });
+
+    commentSection.append(
+      commentHeading,
+      commentList,
+      commentForm
+    );
+
 
     // ===== 삭제 버튼 =====
 
@@ -403,6 +734,7 @@ async function loadPosts() {
       });
 
       if (error) {
+
         console.error(error);
 
         postStatus.textContent =
@@ -415,12 +747,18 @@ async function loadPosts() {
       }
 
       await loadPosts();
+
     });
+
+
+    // ===== 게시글 완성 =====
 
     article.append(
       title,
       meta,
       content,
+      likeArea,
+      commentSection,
       deleteButton,
       postStatus
     );
@@ -428,18 +766,11 @@ async function loadPosts() {
     list.appendChild(article);
 
   });
+
 }
 
-// ===== 제목 글자 수 표시 =====
 
-const titleInput = document.getElementById("title");
-const titleCount = document.getElementById("titleCount");
-
-titleInput.addEventListener("input", () => {
-  titleCount.textContent = titleInput.value.length + "/35";
-});
-  
-  // ===== 게시글 작성 =====
+// ===== 게시글 작성 =====
 
 document.getElementById("postForm")
 .addEventListener("submit", async function(event) {
@@ -474,8 +805,6 @@ document.getElementById("postForm")
   button.disabled = true;
   status.textContent = "기사를 발행하는 중입니다...";
 
-  // 서버에서 비밀번호를 해시 처리하며 게시글 작성
-
   const { error } = await db.rpc("create_post", {
     p_nickname: nickname,
     p_title: title,
@@ -486,6 +815,7 @@ document.getElementById("postForm")
   button.disabled = false;
 
   if (error) {
+
     status.textContent =
       "발행 실패: " + error.message;
 
@@ -498,11 +828,14 @@ document.getElementById("postForm")
   document.getElementById("postForm").reset();
 
   await loadPosts();
+
 });
 
-// ===== 실시간 게시글 갱신 =====
 
-db.channel("posts-realtime")
+// ===== 실시간 갱신 =====
+
+db.channel("gazette-realtime")
+
   .on(
     "postgres_changes",
     {
@@ -510,11 +843,31 @@ db.channel("posts-realtime")
       schema: "public",
       table: "posts"
     },
-    () => {
-      loadPosts();
-    }
+    () => loadPosts()
   )
+
+  .on(
+    "postgres_changes",
+    {
+      event: "*",
+      schema: "public",
+      table: "post_likes"
+    },
+    () => loadPosts()
+  )
+
+  .on(
+    "postgres_changes",
+    {
+      event: "*",
+      schema: "public",
+      table: "post_comments"
+    },
+    () => loadPosts()
+  )
+
   .subscribe();
+
 
 // ===== 최초 실행 =====
 
